@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {DefaultUpdater, UpdateOptions} from '../default';
-import {RUBY_VERSION_REGEX, resolveRubyGemfileLockVersion} from './common';
+import {RubyVersionFormat} from '../../version-format';
 
 export interface GemfileLockOptions extends UpdateOptions {
   gemName: string;
@@ -26,8 +26,10 @@ export interface GemfileLockOptions extends UpdateOptions {
  *    rails (7.0.1.alpha1)
  */
 export function buildGemfileLockVersionRegex(gemName: string) {
-  return new RegExp(`s*${gemName} \\(${RUBY_VERSION_REGEX.source}\\)`);
+  return new RegExp(`s*${gemName} \\(${RubyVersionFormat.SOURCE}\\)`);
 }
+
+const rubyFormat = new RubyVersionFormat();
 
 /**
  * Updates a Gemfile.lock files which is expected to have a local path version string.
@@ -50,15 +52,9 @@ export class GemfileLock extends DefaultUpdater {
       return content;
     }
 
-    // Bundler will convert 1.0.0-alpha1 to 1.0.0.pre.alpha1, so we need to
-    // do the same here.
-    const versionString = resolveRubyGemfileLockVersion(
-      this.version.toString()
-    );
-
     return content.replace(
       buildGemfileLockVersionRegex(this.gemName),
-      `${this.gemName} (${versionString})`
+      `${this.gemName} (${rubyFormat.format(this.version)})`
     );
   }
 }

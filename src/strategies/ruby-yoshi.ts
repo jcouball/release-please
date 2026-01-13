@@ -27,6 +27,7 @@ import {resolve} from 'path';
 import {Release} from '../release';
 import {TagName} from '../util/tag-name';
 import {Version} from '../version';
+import {RubyVersionFormat} from '../version-format';
 
 const CHANGELOG_SECTIONS = [
   {type: 'feat', section: 'Features'},
@@ -44,6 +45,8 @@ const CHANGELOG_SECTIONS = [
 
 export class RubyYoshi extends BaseStrategy {
   readonly versionFile: string;
+  override readonly versionFormat = new RubyVersionFormat();
+
   constructor(options: BaseStrategyOptions) {
     super({
       ...options,

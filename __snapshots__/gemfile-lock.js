@@ -66,7 +66,7 @@ exports['Gemfile.lock updateContent updates prerelease in Gemfile.lock 1'] = `
 PATH
   remote: .
   specs:
-    foo (0.2.0.pre.alpha)
+    foo (0.2.0.alpha)
 
 GEM
   remote: https://rubygems.org/

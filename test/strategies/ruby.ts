@@ -163,5 +163,18 @@ describe('Ruby', () => {
       expect(release, 'Release').to.not.be.undefined;
       expect(release!.tag.separator).to.eql('/');
     });
+
+    it('defines a custom version format that supports dots', () => {
+      const strategy = new Ruby({
+        path: '.',
+        github,
+        targetBranch: 'main',
+      });
+      expect(strategy.versionFormat).to.not.be.undefined;
+      const version = strategy.versionFormat.parse('1.2.3.alpha');
+      expect(version).to.not.be.undefined;
+      expect(version!.major).to.eql(1);
+      expect(version!.preRelease).to.eql('alpha');
+    });
   });
 });

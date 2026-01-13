@@ -23,9 +23,12 @@ import {GemfileLock} from '../updaters/ruby/gemfile-lock';
 import {BaseStrategy, BuildUpdatesOptions, BaseStrategyOptions} from './base';
 import {ConventionalCommit} from '../commit';
 import {Update} from '../update';
+import {RubyVersionFormat} from '../version-format';
 
 export class Ruby extends BaseStrategy {
   readonly versionFile: string;
+  override readonly versionFormat = new RubyVersionFormat();
+
   constructor(options: BaseStrategyOptions) {
     super(options);
     this.versionFile = options.versionFile ?? '';

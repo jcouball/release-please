@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import {DefaultUpdater} from '../default';
-import {RUBY_VERSION_REGEX, stringifyRubyVersion} from './common';
+import {RubyVersionFormat} from '../../version-format';
 
 const RUBY_VERSION_RB_REGEX = new RegExp(
-  `(["'])(${RUBY_VERSION_REGEX.source})(["'])`
+  `(["'])(${RubyVersionFormat.SOURCE})(["'])`
 );
+
+const rubyFormat = new RubyVersionFormat();
 
 /**
  * Updates a versions.rb file which is expected to have a version string.
@@ -31,7 +33,7 @@ export class VersionRB extends DefaultUpdater {
   updateContent(content: string): string {
     return content.replace(
       RUBY_VERSION_RB_REGEX,
-      `$1${stringifyRubyVersion(this.version)}$1`
+      `$1${rubyFormat.format(this.version)}$1`
     );
   }
 }

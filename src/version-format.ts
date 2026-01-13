@@ -72,3 +72,40 @@ export class SemverVersionFormat implements VersionFormat {
     return `${version.major}.${version.minor}.${version.patch}${preReleasePart}${buildPart}`;
   }
 }
+
+/**
+ * Ruby-style version format.
+ * Parses and formats versions like: 1.2.3.alpha.1
+ * Ruby uses dots instead of hyphens for pre-release identifiers.
+ * Ruby gem versions do not support build metadata (+build).
+ */
+export class RubyVersionFormat implements VersionFormat {
+  /**
+   * Pattern source for matching Ruby version strings.
+   * Use this when composing larger regexes in updaters.
+   * Wrapped in a capture group for compatibility with string replacement.
+   */
+  static readonly SOURCE = '((\\d+)\\.(\\d+)\\.(\\d+)([.-]\\w+.*)?)';
+
+  private static readonly REGEX =
+    /(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:[.-](?<preRelease>.+))?/;
+
+  parse(versionString: string): Version | undefined {
+    const match = versionString.match(RubyVersionFormat.REGEX);
+    if (!match?.groups) {
+      return undefined;
+    }
+    return new Version(
+      Number(match.groups.major),
+      Number(match.groups.minor),
+      Number(match.groups.patch),
+      match.groups.preRelease
+    );
+  }
+
+  format(version: Version): string {
+    const preReleasePart = version.preRelease ? `.${version.preRelease}` : '';
+    return `${version.major}.${version.minor}.${version.patch}${preReleasePart}`;
+  }
+}
+

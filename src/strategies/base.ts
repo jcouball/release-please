@@ -27,6 +27,7 @@ import {DefaultChangelogNotes} from '../changelog-notes/default';
 import {Update} from '../update';
 import {ConventionalCommit, Commit} from '../commit';
 import {Version, VersionsMap} from '../version';
+import {VersionFormat, SemverVersionFormat} from '../version-format';
 import {TagName} from '../util/tag-name';
 import {Release} from '../release';
 import {ReleasePullRequest} from '../release-pull-request';
@@ -120,6 +121,11 @@ export abstract class BaseStrategy implements Strategy {
   readonly extraFiles: ExtraFile[];
   readonly extraLabels: string[];
   protected dateFormat: string;
+  /**
+   * @deprecated use versionFormat instead
+   */
+  readonly versionRegex?: RegExp;
+  readonly versionFormat: VersionFormat;
 
   readonly changelogNotes: ChangelogNotes;
 
@@ -158,6 +164,14 @@ export abstract class BaseStrategy implements Strategy {
     this.initialVersion = options.initialVersion;
     this.extraLabels = options.extraLabels || [];
     this.dateFormat = options.dateFormat || DEFAULT_DATE_FORMAT;
+    this.versionFormat = new SemverVersionFormat();
+  }
+
+  /**
+   * @deprecated use versionFormat.parse() instead
+   */
+  parseVersion(versionString: string): Version | undefined {
+    return this.versionFormat.parse(versionString);
   }
 
   /**
@@ -544,7 +558,11 @@ export abstract class BaseStrategy implements Strategy {
       this.logger.warn(
         `Setting version for ${this.path} from release-as configuration`
       );
-      return Version.parse(this.releaseAs);
+      const version = this.versionFormat.parse(this.releaseAs);
+      if (!version) {
+        throw new Error(`Unable to parse release-as version: ${this.releaseAs}`);
+      }
+      return version;
     }
 
     const releaseAsCommit = conventionalCommits.find(conventionalCommit =>
@@ -555,7 +573,11 @@ export abstract class BaseStrategy implements Strategy {
         note => note.title === 'RELEASE AS'
       );
       if (note) {
-        return Version.parse(note.text);
+        const version = this.versionFormat.parse(note.text);
+        if (!version) {
+          throw new Error(`Unable to parse RELEASE AS version: ${note.text}`);
+        }
+        return version;
       }
     }
 
@@ -622,7 +644,8 @@ export abstract class BaseStrategy implements Strategy {
     }
     const branchName = BranchName.parse(
       mergedPullRequest.headBranchName,
-      this.logger
+      this.logger,
+      this.versionFormat
     );
     if (!branchName) {
       this.logger.error(`Bad branch name: ${mergedPullRequest.headBranchName}`);
@@ -739,10 +762,14 @@ export abstract class BaseStrategy implements Strategy {
    */
   protected initialReleaseVersion(): Version {
     if (this.initialVersion) {
-      return Version.parse(this.initialVersion);
+      const version = this.versionFormat.parse(this.initialVersion);
+      if (!version) {
+        throw new Error(`Unable to parse initial version: ${this.initialVersion}`);
+      }
+      return version;
     }
 
-    return Version.parse('1.0.0');
+    return new Version(1, 0, 0);
   }
 
   /**

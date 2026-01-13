@@ -16,13 +16,16 @@ import {BranchName} from '../../src/util/branch-name';
 import {describe, it} from 'mocha';
 import {expect} from 'chai';
 import {Version} from '../../src/version';
+import {SemverVersionFormat} from '../../src/version-format';
+
+const semver = new SemverVersionFormat();
 
 describe('BranchName', () => {
   describe('parse', () => {
     describe('autorelease branch name', () => {
       it('parses a versioned branch name', () => {
         const name = 'release-v1.2.3';
-        const branchName = BranchName.parse(name);
+        const branchName = BranchName.parse(name, undefined, semver);
         expect(branchName).to.not.be.undefined;
         expect(branchName?.getTargetBranch()).to.be.undefined;
         expect(branchName?.getComponent()).to.be.undefined;
@@ -31,7 +34,7 @@ describe('BranchName', () => {
       });
       it('parses a versioned branch name with component', () => {
         const name = 'release-storage-v1.2.3';
-        const branchName = BranchName.parse(name);
+        const branchName = BranchName.parse(name, undefined, semver);
         expect(branchName).to.not.be.undefined;
         expect(branchName?.getTargetBranch()).to.be.undefined;
         expect(branchName?.getComponent()).to.eql('storage');
@@ -40,14 +43,14 @@ describe('BranchName', () => {
       });
       it('should not crash on parsing', () => {
         const name = 'release-storage-v1';
-        const branchName = BranchName.parse(name);
+        const branchName = BranchName.parse(name, undefined, semver);
         expect(branchName).to.be.undefined;
       });
     });
     describe('v12 format', () => {
       it('parses a target branch', () => {
         const name = 'release-please/branches/main';
-        const branchName = BranchName.parse(name);
+        const branchName = BranchName.parse(name, undefined, semver);
         expect(branchName).to.not.be.undefined;
         expect(branchName?.getTargetBranch()).to.eql('main');
         expect(branchName?.getComponent()).to.be.undefined;
@@ -57,7 +60,7 @@ describe('BranchName', () => {
 
       it('parses a target branch and component', () => {
         const name = 'release-please/branches/main/components/storage';
-        const branchName = BranchName.parse(name);
+        const branchName = BranchName.parse(name, undefined, semver);
         expect(branchName).to.not.be.undefined;
         expect(branchName?.getTargetBranch()).to.eql('main');
         expect(branchName?.getComponent()).to.eql('storage');
@@ -68,7 +71,7 @@ describe('BranchName', () => {
 
     it('parses a target branch', () => {
       const name = 'release-please--branches--main';
-      const branchName = BranchName.parse(name);
+      const branchName = BranchName.parse(name, undefined, semver);
       expect(branchName).to.not.be.undefined;
       expect(branchName?.getTargetBranch()).to.eql('main');
       expect(branchName?.getComponent()).to.be.undefined;
@@ -78,7 +81,7 @@ describe('BranchName', () => {
 
     it('parses a target branch that starts with a v', () => {
       const name = 'release-please--branches--v3.3.x';
-      const branchName = BranchName.parse(name);
+      const branchName = BranchName.parse(name, undefined, semver);
       expect(branchName).to.not.be.undefined;
       expect(branchName?.getTargetBranch()).to.eql('v3.3.x');
       expect(branchName?.getComponent()).to.be.undefined;
@@ -88,7 +91,7 @@ describe('BranchName', () => {
 
     it('parses a target branch named with a valid semver', () => {
       const name = 'release-please--branches--v3.3.9';
-      const branchName = BranchName.parse(name);
+      const branchName = BranchName.parse(name, undefined, semver);
       expect(branchName).to.not.be.undefined;
       expect(branchName?.getTargetBranch()).to.eql('v3.3.9');
       expect(branchName?.getComponent()).to.be.undefined;
@@ -98,7 +101,7 @@ describe('BranchName', () => {
 
     it('parses a target branch and component', () => {
       const name = 'release-please--branches--main--components--storage';
-      const branchName = BranchName.parse(name);
+      const branchName = BranchName.parse(name, undefined, semver);
       expect(branchName).to.not.be.undefined;
       expect(branchName?.getTargetBranch()).to.eql('main');
       expect(branchName?.getComponent()).to.eql('storage');
@@ -108,7 +111,7 @@ describe('BranchName', () => {
 
     it('parses a target branch that has a /', () => {
       const name = 'release-please--branches--hotfix/3.3.x';
-      const branchName = BranchName.parse(name);
+      const branchName = BranchName.parse(name, undefined, semver);
       expect(branchName).to.not.be.undefined;
       expect(branchName?.getTargetBranch()).to.eql('hotfix/3.3.x');
       expect(branchName?.getComponent()).to.be.undefined;
@@ -117,13 +120,32 @@ describe('BranchName', () => {
     });
 
     it('fails to parse', () => {
-      const branchName = BranchName.parse('release-foo');
+      const branchName = BranchName.parse('release-foo', undefined, semver);
       expect(branchName).to.be.undefined;
     });
   });
+
+  describe('isReleasePleaseBranch', () => {
+    it('returns true for autorelease branch', () => {
+      expect(BranchName.isReleasePleaseBranch('release-v1.2.3')).to.be.true;
+    });
+    it('returns true for release-please branch', () => {
+      expect(BranchName.isReleasePleaseBranch('release-please--branches--main')).to.be.true;
+    });
+    it('returns true for v12 format branch', () => {
+      expect(BranchName.isReleasePleaseBranch('release-please/branches/main')).to.be.true;
+    });
+    it('returns false for non-release-please branch', () => {
+      expect(BranchName.isReleasePleaseBranch('feature/foo')).to.be.false;
+    });
+    it('returns false for partial match', () => {
+      expect(BranchName.isReleasePleaseBranch('release-foo')).to.be.false;
+    });
+  });
+
   describe('ofVersion', () => {
     it('builds the autorelease versioned branch name', () => {
-      const branchName = BranchName.ofVersion(Version.parse('1.2.3'));
+      const branchName = BranchName.ofVersion(Version.parse('1.2.3'), new SemverVersionFormat());
       expect(branchName.toString()).to.eql('release-v1.2.3');
     });
   });
@@ -131,7 +153,8 @@ describe('BranchName', () => {
     it('builds the autorelease versioned branch name with component', () => {
       const branchName = BranchName.ofComponentVersion(
         'storage',
-        Version.parse('1.2.3')
+        Version.parse('1.2.3'),
+        new SemverVersionFormat()
       );
       expect(branchName.toString()).to.eql('release-storage-v1.2.3');
     });

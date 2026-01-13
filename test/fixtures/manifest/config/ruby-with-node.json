@@ -1,0 +1,10 @@
+{
+  "packages": {
+    "packages/ruby-gem": {
+      "release-type": "ruby"
+    },
+    "packages/node-package": {
+      "release-type": "node"
+    }
+  }
+}

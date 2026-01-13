@@ -221,7 +221,9 @@ describe('Manifest', () => {
       expect(
         manifest.repositoryConfig['packages/gcf-utils'].releaseType
       ).to.eql('node');
-      expect(Object.keys(manifest.releasedVersions)).lengthOf(8);
+      // Only configured path should have released version
+      expect(Object.keys(manifest.releasedVersions)).lengthOf(1);
+      expect(manifest.releasedVersions['packages/gcf-utils']).to.exist;
     });
     it('should override release-as with the given argument', async () => {
       const getFileContentsStub = sandbox.stub(
@@ -253,7 +255,9 @@ describe('Manifest', () => {
       expect(manifest.repositoryConfig['packages/gcf-utils'].releaseAs).to.eql(
         '12.34.56'
       );
-      expect(Object.keys(manifest.releasedVersions)).lengthOf(8);
+      // Only configured path should have released version
+      expect(Object.keys(manifest.releasedVersions)).lengthOf(1);
+      expect(manifest.releasedVersions['packages/gcf-utils']).to.exist;
     });
     it('should read the default release-type from manifest', async () => {
       const getFileContentsStub = sandbox.stub(
@@ -917,6 +921,73 @@ describe('Manifest', () => {
       expect(manifest.repositoryConfig['.'].draftPullRequest).to.be.true;
       expect(manifest.repositoryConfig['node-packages'].draftPullRequest).to.be
         .false;
+    });
+
+    it('should skip manifest entries for paths not in config', async () => {
+      const getFileContentsStub = sandbox.stub(
+        github,
+        'getFileContentsOnBranch'
+      );
+      const manifestWithExtra = {
+        'packages/ruby-gem': '1.2.3',
+        'packages/node-package': '2.0.0-beta.2',
+        'packages/unknown': '1.0.0',
+      };
+      getFileContentsStub
+        .withArgs('release-please-config.json', 'main')
+        .resolves(
+          buildGitHubFileContent(
+            fixturesPath,
+            'manifest/config/ruby-with-node.json'
+          )
+        )
+        .withArgs('.release-please-manifest.json', 'main')
+        .resolves(buildGitHubFileRaw(JSON.stringify(manifestWithExtra)));
+      const manifest = await Manifest.fromManifest(
+        github,
+        github.repository.defaultBranch
+      );
+      // Only configured paths should be parsed (2), orphaned entry skipped
+      expect(Object.keys(manifest.releasedVersions)).lengthOf(2);
+      expect(manifest.releasedVersions['packages/ruby-gem'].toString()).to.eql(
+        '1.2.3'
+      );
+      expect(
+        manifest.releasedVersions['packages/node-package'].toString()
+      ).to.eql('2.0.0-beta.2');
+      // Orphaned path should not be in releasedVersions
+      expect(manifest.releasedVersions['packages/unknown']).to.be.undefined;
+    });
+
+    it('should throw ConfigurationError for unparseable version in manifest', async () => {
+      const getFileContentsStub = sandbox.stub(
+        github,
+        'getFileContentsOnBranch'
+      );
+      const manifestWithBadVersion = {
+        'packages/ruby-gem': 'not-a-version',
+      };
+      getFileContentsStub
+        .withArgs('release-please-config.json', 'main')
+        .resolves(
+          buildGitHubFileContent(
+            fixturesPath,
+            'manifest/config/ruby-with-node.json'
+          )
+        )
+        .withArgs('.release-please-manifest.json', 'main')
+        .resolves(buildGitHubFileRaw(JSON.stringify(manifestWithBadVersion)));
+      await assert.rejects(
+        async () => {
+          await Manifest.fromManifest(github, github.repository.defaultBranch);
+        },
+        e => {
+          return (
+            e instanceof ConfigurationError &&
+            e.message.includes('Unable to parse version in manifest')
+          );
+        }
+      );
     });
   });
 

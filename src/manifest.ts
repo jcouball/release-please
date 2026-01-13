@@ -15,6 +15,7 @@
 import {ChangelogSection} from './changelog-notes';
 import {GitHub, GitHubRelease, GitHubTag} from './github';
 import {Version, VersionsMap} from './version';
+import {VersionFormat} from './version-format';
 import {Commit, parseConventionalCommits} from './commit';
 import {PullRequest} from './pull-request';
 import {logger as defaultLogger, Logger} from './util/logger';
@@ -430,13 +431,28 @@ export class Manifest {
     path?: string,
     releaseAs?: string
   ): Promise<Manifest> {
-    const [
-      {config: repositoryConfig, options: manifestOptions},
-      releasedVersions,
-    ] = await Promise.all([
-      parseConfig(github, configFile, targetBranch, path, releaseAs),
-      parseReleasedVersions(github, manifestFile, targetBranch),
-    ]);
+    // First load config to know what strategies we need
+    const {config: repositoryConfig, options: manifestOptions} =
+      await parseConfig(github, configFile, targetBranch, path, releaseAs);
+
+    // Build strategies to get version formats for manifest parsing
+    const strategiesByPath: Record<string, Strategy> = {};
+    for (const path in repositoryConfig) {
+      strategiesByPath[path] = await buildStrategy({
+        github,
+        ...repositoryConfig[path],
+      });
+    }
+
+    // Parse manifest with strategy-specific version formats
+    const releasedVersions = await parseReleasedVersions(
+      github,
+      manifestFile,
+      targetBranch,
+      strategiesByPath,
+      manifestOptions.logger ?? manifestOptionOverrides.logger
+    );
+
     return new Manifest(
       github,
       targetBranch,
@@ -497,6 +513,7 @@ export class Manifest {
       targetBranch,
       version => isPublishedVersion(strategy, version),
       config,
+      strategy.versionFormat,
       component,
       manifestOptions?.logger
     );
@@ -542,17 +559,24 @@ export class Manifest {
     for await (const release of this.github.releaseIterator({
       maxResults: this.releaseSearchDepth,
     })) {
-      const tagName = TagName.parse(release.tagName);
-      if (!tagName) {
-        this.logger.warn(`Unable to parse release name: ${release.name}`);
-        continue;
-      }
-      const component = tagName.component || DEFAULT_COMPONENT_NAME;
+      // First pass: extract component without parsing version
+      const component =
+        TagName.extractComponent(release.tagName) || DEFAULT_COMPONENT_NAME;
       const path = pathsByComponent[component];
       if (!path) {
         this.logger.warn(
           `Found release tag with component '${component}', but not configured in manifest`
         );
+        continue;
+      }
+
+      // Now we know the path, get the strategy for proper version parsing
+      const strategy = strategiesByPath[path];
+
+      // Second pass: parse full tag with strategy-specific version format
+      const tagName = TagName.parse(release.tagName, strategy?.versionFormat);
+      if (!tagName) {
+        this.logger.warn(`Unable to parse release name: ${release.name}`);
         continue;
       }
       const expectedVersion = this.releasedVersions[path];
@@ -999,7 +1023,7 @@ export class Manifest {
     for await (const closedPullRequest of closedGenerator) {
       if (
         hasAllLabels([SNOOZE_LABEL], closedPullRequest.labels) &&
-        BranchName.parse(closedPullRequest.headBranchName, this.logger)
+        BranchName.isReleasePleaseBranch(closedPullRequest.headBranchName)
       ) {
         const body = await this.pullRequestOverflowHandler.parseOverflow(
           closedPullRequest
@@ -1507,12 +1531,16 @@ async function fetchManifestConfig(
  * @param {GitHub} github GitHub client
  * @param {string} manifestFile Path in the repository to the versions file
  * @param {string} branch Branch to fetch the versions file from
+ * @param {Record<string, Strategy>} strategiesByPath Optional. Map of path to Strategy for version parsing
+ * @param {Logger} logger Optional. Logger instance
  * @returns {Record<string, string>}
  */
 async function parseReleasedVersions(
   github: GitHub,
   manifestFile: string,
-  branch: string
+  branch: string,
+  strategiesByPath?: Record<string, Strategy>,
+  logger: Logger = defaultLogger
 ): Promise<ReleasedVersions> {
   const manifestJson = await fetchReleasedVersions(
     github,
@@ -1521,7 +1549,32 @@ async function parseReleasedVersions(
   );
   const releasedVersions: ReleasedVersions = {};
   for (const path in manifestJson) {
-    releasedVersions[path] = Version.parse(manifestJson[path]);
+    // Skip paths that don't have a configured strategy
+    if (strategiesByPath && !strategiesByPath[path]) {
+      logger.warn(
+        `Skipping manifest entry for unconfigured path: ${path}. Remove this entry from ${manifestFile} or add it to your config.`
+      );
+      continue;
+    }
+
+    const versionFormat = strategiesByPath?.[path]?.versionFormat;
+    if (!versionFormat) {
+      throw new ConfigurationError(
+        `No version format available for path: ${path}`,
+        'manifest',
+        `${github.repository.owner}/${github.repository.repo}`
+      );
+    }
+
+    const version = versionFormat.parse(manifestJson[path]);
+    if (!version) {
+      throw new ConfigurationError(
+        `Unable to parse version in manifest: ${manifestJson[path]}`,
+        'manifest',
+        `${github.repository.owner}/${github.repository.repo}`
+      );
+    }
+    releasedVersions[path] = version;
   }
   return releasedVersions;
 }
@@ -1582,6 +1635,7 @@ async function latestReleaseVersion(
   targetBranch: string,
   releaseFilter: (version: Version) => boolean,
   config: ReleaserConfig,
+  versionFormat: VersionFormat,
   prefix?: string,
   logger: Logger = defaultLogger
 ): Promise<Version | undefined> {
@@ -1618,7 +1672,8 @@ async function latestReleaseVersion(
 
     const branchName = BranchName.parse(
       mergedPullRequest.headBranchName,
-      logger
+      logger,
+      versionFormat
     );
     if (!branchName) {
       logger.trace(
@@ -1665,7 +1720,7 @@ async function latestReleaseVersion(
   // through releases finding valid tags, then cross reference
   const releaseGenerator = github.releaseIterator();
   for await (const release of releaseGenerator) {
-    const tagName = TagName.parse(release.tagName);
+    const tagName = TagName.parse(release.tagName, versionFormat);
     if (!tagName) {
       continue;
     }
@@ -1696,7 +1751,7 @@ async function latestReleaseVersion(
   const tagGenerator = github.tagIterator();
   const candidateTagVersion: Version[] = [];
   for await (const tag of tagGenerator) {
-    const tagName = TagName.parse(tag.name);
+    const tagName = TagName.parse(tag.name, versionFormat);
     if (!tagName) {
       continue;
     }

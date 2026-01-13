@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Version} from '../version';
+import {VersionFormat} from '../version-format';
 import {logger as defaultLogger, Logger} from './logger';
 
 // cannot import from '..' - transpiled code references to RELEASE_PLEASE
@@ -39,10 +40,22 @@ export class BranchName {
   component?: string;
   targetBranch?: string;
   version?: Version;
+  versionFormat?: VersionFormat;
+
+  /**
+   * Check if a branch name matches any release-please branch pattern.
+   * This is a structural check only - it doesn't parse the version.
+   * Use this when you need to identify release-please branches without
+   * knowing the version format.
+   */
+  static isReleasePleaseBranch(branchName: string): boolean {
+    return getAllResourceNames().some(clazz => clazz.matches(branchName));
+  }
 
   static parse(
     branchName: string,
-    logger: Logger = defaultLogger
+    logger: Logger = defaultLogger,
+    versionFormat: VersionFormat
   ): BranchName | undefined {
     try {
       const branchNameClass = getAllResourceNames().find(clazz => {
@@ -51,7 +64,12 @@ export class BranchName {
       if (!branchNameClass) {
         return undefined;
       }
-      return new branchNameClass(branchName);
+      const parsed = new branchNameClass(branchName, versionFormat);
+      // For versioned branch names (AutoreleaseBranchName), version must be valid
+      if (branchNameClass === AutoreleaseBranchName && !parsed.version) {
+        return undefined;
+      }
+      return parsed;
     } catch (e) {
       logger.warn(`Error parsing branch name: ${branchName}`, e);
       return undefined;
@@ -59,12 +77,23 @@ export class BranchName {
   }
   static ofComponentVersion(
     branchPrefix: string,
-    version: Version
+    version: Version,
+    versionFormat: VersionFormat
   ): BranchName {
-    return new AutoreleaseBranchName(`release-${branchPrefix}-v${version}`);
+    const versionString = versionFormat.format(version);
+    const branchName = new AutoreleaseBranchName(
+      `release-${branchPrefix}-v${versionString}`,
+      versionFormat
+    );
+    return branchName;
   }
-  static ofVersion(version: Version): BranchName {
-    return new AutoreleaseBranchName(`release-v${version}`);
+  static ofVersion(version: Version, versionFormat: VersionFormat): BranchName {
+    const versionString = versionFormat.format(version);
+    const branchName = new AutoreleaseBranchName(
+      `release-v${versionString}`,
+      versionFormat
+    );
+    return branchName;
   }
   static ofTargetBranch(targetBranch: string): BranchName {
     return new DefaultBranchName(
@@ -86,7 +115,12 @@ export class BranchName {
       )}`
     );
   }
-  constructor(_branchName: string) {}
+  constructor(
+    _branchName: string,
+    _versionFormat?: VersionFormat
+  ) {
+    this.versionFormat = _versionFormat;
+  }
 
   static matches(_branchName: string): boolean {
     return false;
@@ -120,19 +154,22 @@ class AutoreleaseBranchName extends BranchName {
     }
     return !!branchName.match(AUTORELEASE_PATTERN);
   }
-  constructor(branchName: string) {
-    super(branchName);
+  constructor(branchName: string, versionFormat?: VersionFormat) {
+    super(branchName, versionFormat);
     const match = branchName.match(AUTORELEASE_PATTERN);
-    if (match?.groups) {
+    if (match?.groups && versionFormat) {
       this.component = match.groups['component'];
-      this.version = Version.parse(match.groups['version']);
+      this.version = versionFormat.parse(match.groups['version']);
     }
   }
   toString(): string {
+    const versionString = this.version && this.versionFormat
+      ? this.versionFormat.format(this.version)
+      : this.version?.toString();
     if (this.component) {
-      return `release-${this.component}-v${this.version?.toString()}`;
+      return `release-${this.component}-v${versionString}`;
     }
-    return `release-v${this.version?.toString()}`;
+    return `release-v${versionString}`;
   }
 }
 

@@ -61,6 +61,7 @@ export {Logger, setLogger} from './util/logger';
 export {GitHub} from './github';
 export const configSchema = require('../../schemas/config.json');
 export const manifestSchema = require('../../schemas/manifest.json');
+export {VersionFormat, SemverVersionFormat} from './version-format';
 
 // x-release-please-start-version
 export const VERSION = '17.1.3';

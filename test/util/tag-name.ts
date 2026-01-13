@@ -15,13 +15,17 @@
 import {describe, it} from 'mocha';
 import {expect} from 'chai';
 import {TagName} from '../../src/util/tag-name';
+import {Version} from '../../src/version';
+import {SemverVersionFormat} from '../../src/version-format';
+
+const semver = new SemverVersionFormat();
 
 describe('TagName', () => {
   describe('parse', () => {
     describe('with component', () => {
       it('handles a default separator', () => {
         const name = 'some-component-v1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.eql('some-component');
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -30,7 +34,7 @@ describe('TagName', () => {
       });
       it('handles a / separator', () => {
         const name = 'some-component/v1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.eql('some-component');
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -39,7 +43,7 @@ describe('TagName', () => {
       });
       it('handles tag without a v', () => {
         const name = 'some-component-1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.eql('some-component');
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -48,7 +52,7 @@ describe('TagName', () => {
       });
       it('handles tag without a v with a / separator', () => {
         const name = 'some-component/1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.eql('some-component');
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -59,7 +63,7 @@ describe('TagName', () => {
     describe('without component', () => {
       it('handles a version', () => {
         const name = 'v1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -68,7 +72,7 @@ describe('TagName', () => {
       });
       it('handles a version without a v', () => {
         const name = '1.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('1.2.3');
@@ -77,7 +81,7 @@ describe('TagName', () => {
       });
       it('handles a dual digit version without v', () => {
         const name = '10.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('10.2.3');
@@ -86,7 +90,7 @@ describe('TagName', () => {
       });
       it('handles a dual digit version', () => {
         const name = 'v10.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('10.2.3');
@@ -95,7 +99,7 @@ describe('TagName', () => {
       });
       it('handles a triple digit version without v', () => {
         const name = '178.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('178.2.3');
@@ -104,13 +108,35 @@ describe('TagName', () => {
       });
       it('handles a triple digit version', () => {
         const name = 'v178.2.3';
-        const tagName = TagName.parse(name);
+        const tagName = TagName.parse(name, semver);
         expect(tagName).to.not.be.undefined;
         expect(tagName?.component).to.be.undefined;
         expect(tagName?.version.toString()).to.eql('178.2.3');
         expect(tagName?.separator).to.eql('-');
         expect(tagName?.toString()).to.eql(name);
       });
+    });
+    describe('with custom version format', () => {
+      it('parses semver prerelease versions', () => {
+        const name = 'component-v1.2.3-beta';
+        const tagName = TagName.parse(name, semver);
+        expect(tagName).to.not.be.undefined;
+        expect(tagName?.version.preRelease).to.eql('beta');
+      });
+    });
+  });
+  describe('extractComponent', () => {
+    it('extracts component from tag with default separator', () => {
+      const component = TagName.extractComponent('my-gem-v1.0.0.alpha.1');
+      expect(component).to.eql('my-gem');
+    });
+    it('extracts component from tag with / separator', () => {
+      const component = TagName.extractComponent('my-gem/v1.0.0');
+      expect(component).to.eql('my-gem');
+    });
+    it('returns undefined for tags without component', () => {
+      const component = TagName.extractComponent('v1.0.0');
+      expect(component).to.be.undefined;
     });
   });
 });

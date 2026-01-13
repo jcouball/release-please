@@ -19,6 +19,7 @@ import {Commit} from './commit';
 import {VersioningStrategy} from './versioning-strategy';
 import {ChangelogNotes} from './changelog-notes';
 import {Version} from './version';
+import {VersionFormat} from './version-format';
 
 export interface BuildReleaseOptions {
   groupPullRequestTitlePattern?: string;
@@ -36,6 +37,18 @@ export interface Strategy {
   readonly changelogNotes: ChangelogNotes;
   readonly path: string;
   readonly versioningStrategy: VersioningStrategy;
+  /**
+   * The version format used by this strategy for parsing and formatting versions.
+   */
+  readonly versionFormat: VersionFormat;
+  /**
+   * @deprecated use versionFormat instead
+   */
+  readonly versionRegex?: RegExp;
+  /**
+   * @deprecated use versionFormat.parse() instead
+   */
+  parseVersion?(versionString: string): Version | undefined;
   /**
    * Builds a candidate release pull request
    * @param {Commit[]} commits Raw commits to consider for this release.

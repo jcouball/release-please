@@ -23,6 +23,7 @@ import {
   buildGitHubFileContent,
   assertNoHasUpdate,
 } from '../helpers';
+import {SemverVersionFormat} from '../../src/version-format';
 import {buildMockConventionalCommit} from '../helpers';
 import {TagName} from '../../src/util/tag-name';
 import {Changelog} from '../../src/updaters/changelog';
@@ -89,7 +90,7 @@ describe('DotnetYoshi', () => {
         component: 'Google.Cloud.SecurityCenter.V1',
       });
       const latestRelease = {
-        tag: TagName.parse('Google.Cloud.SecurityCenter.V1-0.123.4')!,
+        tag: TagName.parse('Google.Cloud.SecurityCenter.V1-0.123.4', new SemverVersionFormat())!,
         sha: 'abc123',
         notes: 'some notes',
       };

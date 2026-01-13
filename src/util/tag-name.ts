@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Version} from '../version';
+import {VersionFormat} from '../version-format';
 
 const TAG_PATTERN =
   /^((?<component>.*)(?<separator>[^a-zA-Z0-9]))?(?<v>v)?(?<version>\d+\.\d+\.\d+.*)$/;
@@ -36,11 +37,29 @@ export class TagName {
     this.includeV = includeV;
   }
 
-  static parse(tagName: string): TagName | undefined {
+  /**
+   * Extract just the component from a tag name without parsing the version.
+   * This is useful when you need to determine which strategy to use before
+   * parsing the full tag.
+   */
+  static extractComponent(tagName: string): string | undefined {
+    const match = tagName.match(TAG_PATTERN);
+    return match?.groups?.component;
+  }
+
+  static parse(
+    tagName: string,
+    versionFormat: VersionFormat
+  ): TagName | undefined {
     const match = tagName.match(TAG_PATTERN);
     if (match?.groups) {
+      const versionString = match.groups.version;
+      const version = versionFormat.parse(versionString);
+      if (!version) {
+        return undefined;
+      }
       return new TagName(
-        Version.parse(match.groups.version),
+        version,
         match.groups.component,
         match.groups.separator,
         !!match.groups.v

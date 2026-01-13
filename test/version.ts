@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {describe, it} from 'mocha';
+import {describe, it, beforeEach, afterEach} from 'mocha';
 
 import {expect} from 'chai';
 import {Version} from '../src/version';
+import * as sinon from 'sinon';
 
 describe('Version', () => {
+  let consoleWarnStub: sinon.SinonStub;
   describe('parse', () => {
     it('can read a plain semver', async () => {
       const input = '1.23.45';
@@ -48,6 +50,25 @@ describe('Version', () => {
       expect(version.preRelease).to.equal('beta');
       expect(version.build).is.undefined;
       expect(version.toString()).to.equal(input);
+    });
+    it('can parse a version with custom regex (deprecated)', () => {
+      consoleWarnStub = sinon.stub(console, 'warn');
+      const rubyRegex =
+        /(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:[.-](?<preRelease>[^+]+))?(\+(?<build>.*))?/;
+      const input = '1.0.0.alpha.1';
+      const version = Version.parse(input, rubyRegex);
+      expect(version.major).to.equal(1);
+      expect(version.minor).to.equal(0);
+      expect(version.patch).to.equal(0);
+      expect(version.preRelease).to.equal('alpha.1');
+      expect(version.toString()).to.equal('1.0.0-alpha.1'); // Version.toString uses semver format
+      
+      // Verify deprecation warning was emitted
+      expect(consoleWarnStub.calledOnce).to.be.true;
+      expect(
+        consoleWarnStub.firstCall.args[0]
+      ).to.include('Version.parse versionRegex parameter is deprecated');
+      consoleWarnStub.restore();
     });
     it('can read a beta SNAPSHOT version', async () => {
       const input = '1.23.45-beta-SNAPSHOT';

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as semver from 'semver';
+import {SemverVersionFormat} from './version-format';
 
 const VERSION_REGEX =
   /(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(-(?<preRelease>[^+]+))?(\+(?<build>.*))?/;
@@ -42,23 +43,40 @@ export class Version {
   }
 
   /**
-   * Parse a version string into a data class.
+   * Parse a version string into a data class using standard SemVer format.
    *
    * @param {string} versionString the input version string
+   * @param {RegExp} versionRegex optional regex to use for parsing
    * @returns {Version} the parsed version
    * @throws {Error} if the version string cannot be parsed
+   * @deprecated The versionRegex parameter is deprecated.  Implement the VersionFormat interface for custom version formats.
    */
-  static parse(versionString: string): Version {
-    const match = versionString.match(VERSION_REGEX);
-    if (!match?.groups) {
+  static parse(versionString: string, versionRegex?: RegExp): Version {
+    if (versionRegex) {
+      // Deprecated: use the old regex-based implementation for backward compatibility
+      console.warn(
+        'Version.parse versionRegex parameter is deprecated. ' +
+          'Implement the VersionFormat interface for custom version formats.'
+      );
+      const match = versionString.match(versionRegex);
+      if (!match?.groups) {
+        throw Error(`unable to parse version string: ${versionString}`);
+      }
+      return new Version(
+        Number(match.groups.major),
+        Number(match.groups.minor),
+        Number(match.groups.patch),
+        match.groups.preRelease,
+        match.groups.build
+      );
+    }
+
+    // New implementation using SemverVersionFormat
+    const version = new SemverVersionFormat().parse(versionString);
+    if (!version) {
       throw Error(`unable to parse version string: ${versionString}`);
     }
-    const major = Number(match.groups.major);
-    const minor = Number(match.groups.minor);
-    const patch = Number(match.groups.patch);
-    const preRelease = match.groups.preRelease;
-    const build = match.groups.build;
-    return new Version(major, minor, patch, preRelease, build);
+    return version;
   }
 
   /**

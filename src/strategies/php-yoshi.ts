@@ -122,12 +122,29 @@ export class PHPYoshi extends BaseStrategy {
           versionContents: contents,
           composer,
         };
-        const newVersion = versionOverrides[directory]
-          ? Version.parse(versionOverrides[directory])
-          : await this.versioningStrategy.bump(
-              Version.parse(contents.parsedContent),
-              splitCommits[directory]
+        let newVersion: Version;
+        if (versionOverrides[directory]) {
+          const parsed = this.versionFormat.parse(versionOverrides[directory]);
+          if (!parsed) {
+            throw new Error(
+              `Unable to parse version override: ${versionOverrides[directory]}`
             );
+          }
+          newVersion = parsed;
+        } else {
+          const currentVersion = this.versionFormat.parse(
+            contents.parsedContent
+          );
+          if (!currentVersion) {
+            throw new Error(
+              `Unable to parse current version: ${contents.parsedContent}`
+            );
+          }
+          newVersion = await this.versioningStrategy.bump(
+            currentVersion,
+            splitCommits[directory]
+          );
+        }
         versionsMap.set(composer.name, newVersion);
         const partialReleaseNotes = await this.changelogNotes.buildNotes(
           splitCommits[directory],
